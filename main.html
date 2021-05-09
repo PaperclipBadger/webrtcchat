@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <!-- Hi, Ed! -->
+        <title>WebRTC Chat</title>
+        <script type="text/javascript" src="main.js"></script>
+        <script type="text/javascript" src="https://unpkg.com/peerjs@1.3.1/dist/peerjs.min.js"></script>
+    </head>
+    <body>
+        <div id="myapp"></div>
+    </body>
+    <script type="text/javascript">
+        // Set up the Peer object.
+        var peer = new Peer(
+            options={
+                host: "localhost",
+                port: 9000,
+                secure: false,
+                debug: 2,
+            }
+        );
+
+        var app = null;
+        var conns = [];
+
+        peer.on("open", function () {
+
+            // Start the application.
+            app = Elm.Main.init({
+                node: document.getElementById("myapp"),
+                flags: peer.id,
+            })
+
+            function ondata(data) { app.ports.messageReceiver.send(data) }
+            
+            app.ports.sendMessage.subscribe(function (message) {
+                if (message.type === "connect") {
+                    var conn = peer.connect(message.peerid);
+                    conn.on("data", ondata)
+                    conns.push(conn)
+                } else if (message.type === "broadcast") {
+                    for (conn of conns) { conn.send(message) }
+                }
+            });
+
+            peer.on("connection", function (conn) {
+                conn.on("data", ondata)
+                conns.push(conn)
+                app.ports.messageReceiver.send({
+                    type: "connected",
+                    peerid: conn.peer,
+                })
+            });
+        });
+    </script>
+</html>
